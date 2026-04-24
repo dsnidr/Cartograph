@@ -1,0 +1,7 @@
+*.prof
+testworld
+coverage.*
+*.jar
+cartograph
+*.tmp
+*.csv

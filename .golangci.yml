@@ -1,0 +1,42 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - misspell
+    - gocritic
+    - revive
+    - errorlint
+    - nilerr
+    - gosec
+    - prealloc
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - govet
+          - errcheck
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+
+    errcheck:
+      check-blank: false
+
+    gosec:
+      severity: low
+      confidence: low
+      excludes:
+        - G115
+        - G304
+        - G104

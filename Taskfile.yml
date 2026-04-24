@@ -1,0 +1,44 @@
+version: "3"
+
+vars:
+  EXT: '{{if eq OS "windows"}}.exe{{else}}{{end}}'
+
+tasks:
+  build:
+    desc: "Build the production cartograph binary"
+    cmds:
+      - go build -ldflags="-s -w" -o cartograph{{.EXT}} ./cmd/cli
+
+  profile:
+    desc: "Build and run a profiling pass on a world with live pprof server and file output"
+    vars:
+      WORLD: '{{default "testworld/region" .WORLD}}'
+      ADDR: '{{default "localhost:6060" .ADDR}}'
+      MEM: '{{default "pprof/mem.prof" .MEM}}'
+      CPU: '{{default "pprof/cpu.prof" .CPU}}'
+    cmds:
+      - go build -tags=debug -o cartograph{{.EXT}} ./cmd/cli
+      - ./cartograph{{.EXT}} --world="{{.WORLD}}" --pprof-addr="{{.ADDR}}" --memprofile="{{.MEM}}" --cpuprofile="{{.CPU}}" {{.CLI_ARGS}}
+
+  debug-region:
+    desc: "Run an isolated debug on a specific region file"
+    vars:
+      FILE: '{{default "" .FILE}}'
+      CPU: '{{default "debug-cpu.prof" .CPU}}'
+      MEM: '{{default "debug-mem.prof" .MEM}}'
+    cmds:
+      - go run ./tools/debug_region/main.go --file="{{.FILE}}" --cpuprofile="{{.CPU}}" --memprofile="{{.MEM}}"
+    preconditions:
+      - sh: 'test -n "{{.FILE}}"'
+        msg: "Missing FILE variable. Usage: task debug-region FILE=/path/to/r.-2.-10.mca"
+
+  ingest:
+    desc: "Ingest vanilla colours and biomes from a Minecraft jar"
+    vars:
+      JAR: '{{default "" .JAR}}'
+      OUT_DIR: '{{default "internal/registry" .OUT_DIR}}'
+    cmds:
+      - go run tools/ingest/main.go -jar="{{.JAR}}" -outDir="{{.OUT_DIR}}" {{.CLI_ARGS}} {{.REMAINING_ARGS}}
+    preconditions:
+      - sh: 'test -n "{{.JAR}}"'
+        msg: "Missing JAR variable. Usage: task ingest JAR=/path/to/minecraft.jar"
