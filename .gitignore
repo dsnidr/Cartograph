@@ -5,3 +5,4 @@ coverage.*
 cartograph
 *.tmp
 *.csv
+dist/
