@@ -44,6 +44,11 @@ type runOptions struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v") {
+		printVersion()
+		os.Exit(0)
+	}
+
 	opts, debugCfg := setupFlags()
 
 	waitProfile := applyDebug(debugCfg, opts)

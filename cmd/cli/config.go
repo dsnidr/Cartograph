@@ -36,7 +36,7 @@ func setupFlags() (*runOptions, *debugConfig) {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Cartograph - Minecraft World Mapper\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n  cartograph [options]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n  cartograph [options]\n  cartograph version\n\n")
 
 		fmt.Fprintf(os.Stderr, "Core Options:\n")
 		fmt.Fprintf(os.Stderr, "  --world <path>          Path to the world directory. (Optional if in world dir)\n")
