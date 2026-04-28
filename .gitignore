@@ -2,7 +2,8 @@
 testworld
 coverage.*
 *.jar
-cartograph
+/cartograph
 *.tmp
 *.csv
 dist/
+out/

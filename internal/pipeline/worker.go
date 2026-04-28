@@ -132,9 +132,7 @@ func (o *Orchestrator) StartWorkers(ctx context.Context, numWorkers int, jobs <-
 
 					return nil
 				})
-				func() {
-					_ = file.Close()
-				}()
+				_ = file.Close()
 
 				if err != nil {
 					select {
@@ -167,7 +165,7 @@ func (o *Orchestrator) StartWorkers(ctx context.Context, numWorkers int, jobs <-
 					return
 				}
 
-				img, hm := o.Renderer.ExtractBaseSurface(rJob.SurfaceGrid, o.BlockRegistry, o.Scale)
+				img, hm, bm := o.Renderer.ExtractBaseSurface(rJob.SurfaceGrid, o.BlockRegistry, o.Scale, o.BiomePalette)
 
 				if o.OutputMode == OutputModeTiles {
 					baseName := filepath.Base(rJob.RegionPath)
@@ -185,7 +183,7 @@ func (o *Orchestrator) StartWorkers(ctx context.Context, numWorkers int, jobs <-
 					select {
 					case <-ctx.Done():
 						return
-					case results <- Result{RegionPath: rJob.RegionPath, X: rJob.X, Z: rJob.Z, Image: img, Heightmap: hm, Err: nil}:
+					case results <- Result{RegionPath: rJob.RegionPath, X: rJob.X, Z: rJob.Z, Image: img, Heightmap: hm, Biomemap: bm, Err: nil}:
 					}
 				}
 			}

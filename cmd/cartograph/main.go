@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/dsnidr/cartograph/internal/pipeline"
 	"github.com/dsnidr/cartograph/internal/registry"
 	"github.com/dsnidr/cartograph/internal/render"
+	"github.com/dsnidr/cartograph/internal/render/csd"
 )
 
 type VerbosityLevel int
@@ -40,6 +42,7 @@ type runOptions struct {
 	RendererConfig render.RendererConfig
 	DebugMemory    bool
 	StatsCSV       string
+	EmitSpatial    bool
 	Verbosity      VerbosityLevel
 }
 
@@ -166,6 +169,7 @@ func run(ctx context.Context, opts runOptions) error {
 
 	var canvas *render.FileBackedImage
 	var heightmap *render.FileBackedHeightmap
+	var biomemap *render.FileBackedBiomeMap
 	var canvasErr error
 	var finalCanvas *render.FileBackedImage
 
@@ -207,6 +211,17 @@ func run(ctx context.Context, opts runOptions) error {
 			_ = heightmap.Close()
 		}()
 
+		if opts.EmitSpatial {
+			tempBiomeFile := filepath.Join(opts.OutDir, "biomemap.tmp")
+			biomemap, canvasErr = render.NewFileBackedBiomeMap(width, height, tempBiomeFile)
+			if canvasErr != nil {
+				return fmt.Errorf("create composite biome map: %w", canvasErr)
+			}
+			defer func() {
+				_ = biomemap.Close()
+			}()
+		}
+
 		tempFinalFile := filepath.Join(opts.OutDir, "final_map.tmp")
 		finalCanvas, canvasErr = render.NewFileBackedImage(width, height, tempFinalFile)
 		if canvasErr != nil {
@@ -237,6 +252,11 @@ func run(ctx context.Context, opts runOptions) error {
 			}
 			if err := heightmap.WriteSubHeightmap(offsetX, offsetZ, res.Heightmap); err != nil {
 				slog.Error("Failed to write to heightmap", "region", res.RegionPath, "err", err)
+			}
+			if opts.EmitSpatial && biomemap != nil {
+				if err := biomemap.WriteSubBiomeMap(offsetX, offsetZ, res.Biomemap); err != nil {
+					slog.Error("Failed to write to biome map", "region", res.RegionPath, "err", err)
+				}
 			}
 		}
 
@@ -348,6 +368,32 @@ func run(ctx context.Context, opts runOptions) error {
 			return fmt.Errorf("encode final map png: %w", err)
 		}
 		pngDuration = time.Since(pngStart)
+
+		if opts.EmitSpatial && biomemap != nil {
+			slog.Info("Emitting spatial data dump (.csd)...")
+			csdStart := time.Now()
+			csdPath := ""
+			if opts.OutFile != "" {
+				csdPath = strings.TrimSuffix(opts.OutFile, filepath.Ext(opts.OutFile)) + ".csd"
+			} else {
+				csdPath = filepath.Join(opts.OutDir, "map.csd")
+			}
+
+			cf, err := os.Create(csdPath)
+			if err != nil {
+				return fmt.Errorf("create csd file: %w", err)
+			}
+
+			if err := csd.Write(cf, width, height, opts.Scale, orchestrator.BiomePalette, heightmap, biomemap); err != nil {
+				_ = cf.Close()
+				return fmt.Errorf("write csd file: %w", err)
+			}
+
+			if err := cf.Close(); err != nil {
+				return fmt.Errorf("close csd file: %w", err)
+			}
+			slog.Info("Spatial data dump complete", "path", csdPath, "took", time.Since(csdStart).Round(time.Millisecond))
+		}
 	}
 
 	if opts.Verbosity != VerbositySilent {

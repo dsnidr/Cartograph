@@ -28,6 +28,7 @@ func setupFlags() (*runOptions, *debugConfig) {
 		workers       int
 		waterDepth    int
 		statsCSV      string
+		emitSpatial   bool
 		quiet         bool
 		silent        bool
 	)
@@ -55,6 +56,7 @@ func setupFlags() (*runOptions, *debugConfig) {
 		fmt.Fprintf(os.Stderr, "\nAdvanced Options:\n")
 		fmt.Fprintf(os.Stderr, "  --target-version <ver>  Target Minecraft version, e.g., '1.18' (default: \"auto\")\n")
 		fmt.Fprintf(os.Stderr, "  --stats-csv <path>      Append runtime stats to CSV file\n")
+		fmt.Fprintf(os.Stderr, "  --emit-spatial          Emit a binary spatial data file (.csd) alongside the map\n")
 
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  cartograph --world ./myworld --out-mode composite\n")
@@ -71,6 +73,7 @@ func setupFlags() (*runOptions, *debugConfig) {
 	flag.IntVar(&workers, "workers", 0, "Number of concurrent workers.")
 	flag.IntVar(&waterDepth, "water-depth", 6, "Maximum water depth to render.")
 	flag.StringVar(&statsCSV, "stats-csv", "", "Append runtime stats to the specified CSV file.")
+	flag.BoolVar(&emitSpatial, "emit-spatial", false, "Emit a binary spatial data file (.csd) alongside the map.")
 	flag.BoolVar(&quiet, "quiet", false, "Quiet mode: print only warnings, errors, and the final completion summary.")
 	flag.BoolVar(&silent, "silent", false, "Silent mode: print absolutely nothing except fatal panics.")
 	flag.Parse()
@@ -175,6 +178,7 @@ func setupFlags() (*runOptions, *debugConfig) {
 		TargetVersion: targetVersion,
 		Workers:       workers,
 		StatsCSV:      statsCSV,
+		EmitSpatial:   emitSpatial,
 		Verbosity:     verbosity,
 		RendererConfig: render.RendererConfig{
 			DebugMissingBlocks: false, // Could be added as a flag later if needed

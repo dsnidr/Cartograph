@@ -27,5 +27,6 @@ type Result struct {
 	X, Z       int
 	Image      *image.RGBA
 	Heightmap  *image.Gray16
+	Biomemap   *image.Gray16
 	Err        error
 }

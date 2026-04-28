@@ -26,14 +26,18 @@ Cartograph is a blazingly fast, high-efficiency 2D map renderer for Minecraft.
 
 ## 🚀 Installation
 
-Currently, no binaries are distributed meaning you'll need to build from source. I hope to remedy this in the future!
+Download the correct binary for your system from the latest release.
+
+### Building from Source
 
 Ensure you have [Go 1.24+](https://go.dev/dl/) installed.
+
+Building from source is very straightforward:
 
 ```bash
 git clone https://github.com/dsnidr/cartograph.git
 cd cartograph
-go build -o cartograph ./cmd/cli
+go build -o cartograph ./cmd/cartograph
 ```
 
 Done! Copy and run `cartograph` wherever you wish.

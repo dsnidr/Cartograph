@@ -114,8 +114,11 @@ func TestRenderer_renderDownsampled(t *testing.T) {
 		// Block 4: zero-value (representing void / air)
 		// surface[1][1] is implicitly zero-value (HasBlock = false)
 
+		palette := NewBiomePalette()
+		_ = palette.GetID("minecraft:plains") // plains ID = 1 (usually)
+
 		// Run 2:1 downsampling
-		img, _ := renderer.ExtractBaseSurface(surface, br, Scale2x2)
+		img, hm, bm := renderer.ExtractBaseSurface(surface, br, Scale2x2, palette)
 
 		// Get the single output pixel that represents this 2x2 area
 		outColour := img.RGBAAt(0, 0)
@@ -128,6 +131,33 @@ func TestRenderer_renderDownsampled(t *testing.T) {
 		expected := color.RGBA{R: 133, G: 119, B: 108, A: 255}
 
 		assert.Equal(t, expected, outColour)
+		assert.Equal(t, uint16(10+128), hm.Gray16At(0, 0).Y)
+		require.NotNil(t, bm)
+		assert.Equal(t, palette.GetID("minecraft:plains"), bm.Gray16At(0, 0).Y)
+	})
+
+	t.Run("determines biome tie deterministically", func(t *testing.T) {
+		renderer := NewRenderer(RendererConfig{})
+		ctx := t.Context()
+		br, err := registry.New(ctx)
+		require.NoError(t, err)
+
+		br.RegisterColour("minecraft:stone", color.RGBA{R: 125, G: 125, B: 125, A: 255}, registry.TintNone)
+
+		surface := new(SurfaceGrid)
+
+		// 2 desert, 2 plains
+		surface[0][0] = BlockHit{BlockName: "minecraft:stone", BiomeName: "minecraft:plains", HasBlock: true}
+		surface[1][0] = BlockHit{BlockName: "minecraft:stone", BiomeName: "minecraft:desert", HasBlock: true}
+		surface[0][1] = BlockHit{BlockName: "minecraft:stone", BiomeName: "minecraft:plains", HasBlock: true}
+		surface[1][1] = BlockHit{BlockName: "minecraft:stone", BiomeName: "minecraft:desert", HasBlock: true}
+
+		palette := NewBiomePalette()
+
+		_, _, bm := renderer.ExtractBaseSurface(surface, br, Scale2x2, palette)
+
+		// "minecraft:desert" comes before "minecraft:plains" alphabetically, so it should win the tie
+		assert.Equal(t, palette.GetID("minecraft:desert"), bm.Gray16At(0, 0).Y)
 	})
 
 	t.Run("returns transparent pixel when all blocks in area are nil", func(t *testing.T) {
@@ -139,7 +169,7 @@ func TestRenderer_renderDownsampled(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run 2:1 downsampling on entirely empty grid
-		img, _ := renderer.ExtractBaseSurface(surface, br, Scale2x2)
+		img, _, _ := renderer.ExtractBaseSurface(surface, br, Scale2x2, nil)
 
 		outColour := img.RGBAAt(0, 0)
 		expected := color.RGBA{0, 0, 0, 0}

@@ -266,3 +266,99 @@ func (c *FileBackedHeightmap) ReadSubHeightmap(offsetX, offsetY, width, height i
 
 	return img, nil
 }
+
+// FileBackedBiomeMap implements a disk-backed store for image.Gray16 (uint16) data.
+type FileBackedBiomeMap struct {
+	file   *os.File
+	bounds image.Rectangle
+}
+
+// NewFileBackedBiomeMap creates a new disk-backed biome map (Gray16) of the specified size.
+func NewFileBackedBiomeMap(width, height int, tempPath string) (*FileBackedBiomeMap, error) {
+	f, err := os.Create(tempPath)
+	if err != nil {
+		return nil, fmt.Errorf("create temp biome map file: %w", err)
+	}
+
+	size := int64(width) * int64(height) * 2 // 2 bytes per pixel
+	if err := f.Truncate(size); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("truncate temp biome map file: %w", err)
+	}
+
+	return &FileBackedBiomeMap{
+		file:   f,
+		bounds: image.Rect(0, 0, width, height),
+	}, nil
+}
+
+// Close removes the temporary file and closes the file handle.
+func (c *FileBackedBiomeMap) Close() error {
+	path := c.file.Name()
+	if err := c.file.Close(); err != nil {
+		return err
+	}
+	return os.Remove(path)
+}
+
+// WriteSubBiomeMap writes an entire image.Gray16 block into the biome map at the given offset.
+func (c *FileBackedBiomeMap) WriteSubBiomeMap(offsetX, offsetY int, img *image.Gray16) error {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	canvasWidth := c.bounds.Dx()
+
+	for y := range height {
+		srcIdx := img.PixOffset(bounds.Min.X, bounds.Min.Y+y)
+		rowBytes := img.Pix[srcIdx : srcIdx+width*2]
+		destOffset := (int64(offsetY+y)*int64(canvasWidth) + int64(offsetX)) * 2
+
+		if _, err := c.file.WriteAt(rowBytes, destOffset); err != nil {
+			return fmt.Errorf("write biome map row %d: %w", y, err)
+		}
+	}
+	return nil
+}
+
+// ReadSubBiomeMap reads a rectangular region from the file-backed biome map.
+func (c *FileBackedBiomeMap) ReadSubBiomeMap(offsetX, offsetY, width, height int) (*image.Gray16, error) {
+	img := image.NewGray16(image.Rect(0, 0, width, height))
+	canvasWidth := c.bounds.Dx()
+
+	for y := range height {
+		globalY := offsetY + y
+		if globalY < 0 || globalY >= c.bounds.Dy() {
+			continue
+		}
+
+		readStartX := offsetX
+		readWidth := width
+		imgStartX := 0
+
+		if readStartX < 0 {
+			imgStartX = -readStartX
+			readWidth += readStartX
+			readStartX = 0
+		}
+
+		if readStartX+readWidth > canvasWidth {
+			readWidth = canvasWidth - readStartX
+		}
+
+		if readWidth <= 0 {
+			continue
+		}
+
+		rowBytes := make([]byte, readWidth*2)
+		fileOffset := (int64(globalY)*int64(canvasWidth) + int64(readStartX)) * 2
+		_, err := c.file.ReadAt(rowBytes, fileOffset)
+		if err != nil {
+			return nil, fmt.Errorf("read biome map row %d: %w", globalY, err)
+		}
+
+		destIdx := img.PixOffset(imgStartX, y)
+		copy(img.Pix[destIdx:], rowBytes)
+	}
+
+	return img, nil
+}

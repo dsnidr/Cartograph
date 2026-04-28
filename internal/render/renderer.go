@@ -98,7 +98,7 @@ func (r *Renderer) ExtractChunkSurface(surface *SurfaceGrid, chunk *nbt.RegionCh
 					pooled = make([]bool, 0, length)
 				}
 				secTrans = pooled[:length]
-				
+
 				pooledW := boolPool.GetBoolSlice()
 				if length > cap(pooledW) {
 					pooledW = make([]bool, 0, length)
@@ -129,7 +129,7 @@ func (r *Renderer) ExtractChunkSurface(surface *SurfaceGrid, chunk *nbt.RegionCh
 			if allTransparent {
 				if boolPool != nil {
 					boolPool.PutBoolSlice(secTrans)
-					// boolPool.PutBoolSlice(secWater) // we still need secWater
+					// NOTE: secWater is not returned to the pool here because it's still needed for the surface grid
 				}
 				sectionTransparencies[i] = nil
 				sectionIsWater[i] = secWater
@@ -186,8 +186,8 @@ func (r *Renderer) ExtractChunkSurface(surface *SurfaceGrid, chunk *nbt.RegionCh
 	}
 }
 
-// ExtractBaseSurface downsamples a surface grid into an image and a heightmap.
-func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.Registry, scale int) (*image.RGBA, *image.Gray16) {
+// ExtractBaseSurface downsamples a surface grid into an image, a heightmap, and optionally a biome map.
+func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.Registry, scale int, palette *BiomePalette) (*image.RGBA, *image.Gray16, *image.Gray16) {
 	var step int
 	switch scale {
 	case Scale2x2:
@@ -203,6 +203,12 @@ func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.R
 	outSize := RegionBlocks / step
 	img := image.NewRGBA(image.Rect(0, 0, outSize, outSize))
 	hm := image.NewGray16(image.Rect(0, 0, outSize, outSize))
+	var bm *image.Gray16
+	var biomeFreq map[string]int
+	if palette != nil {
+		bm = image.NewGray16(image.Rect(0, 0, outSize, outSize))
+		biomeFreq = make(map[string]int)
+	}
 
 	for outX := range outSize {
 		for outZ := range outSize {
@@ -213,6 +219,9 @@ func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.R
 				if hit.HasBlock {
 					img.Set(outX, outZ, r.resolveColour(&hit, blockReg))
 					hm.SetGray16(outX, outZ, color.Gray16{Y: uint16(hit.Y + 128)})
+					if bm != nil {
+						bm.SetGray16(outX, outZ, color.Gray16{Y: palette.GetID(hit.BiomeName)})
+					}
 				}
 				continue
 			}
@@ -220,6 +229,10 @@ func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.R
 			var rSum, gSum, bSum, aSum uint32
 			var ySum int
 			var count uint32
+
+			if bm != nil {
+				clear(biomeFreq)
+			}
 
 			for dx := range step {
 				for dz := range step {
@@ -240,6 +253,10 @@ func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.R
 					aSum += a
 					ySum += hit.Y
 					count++
+
+					if bm != nil {
+						biomeFreq[hit.BiomeName]++
+					}
 				}
 			}
 
@@ -253,21 +270,33 @@ func (r *Renderer) ExtractBaseSurface(surface *SurfaceGrid, blockReg *registry.R
 				// Average height for the downsampled pixel
 				avgY := ySum / int(count)
 				hm.SetGray16(outX, outZ, color.Gray16{Y: uint16(avgY + 128)})
+
+				if bm != nil {
+					mostFreqBiome := ""
+					maxFreq := 0
+					for b, f := range biomeFreq {
+						if f > maxFreq || (f == maxFreq && b < mostFreqBiome) {
+							mostFreqBiome = b
+							maxFreq = f
+						}
+					}
+					bm.SetGray16(outX, outZ, color.Gray16{Y: palette.GetID(mostFreqBiome)})
+				}
 			}
 		}
 	}
 
-	return img, hm
+	return img, hm, bm
 }
 
 // resolveColour takes a BlockHit and maps it to a color.RGBA value
 func (r *Renderer) resolveColour(hit *BlockHit, blockReg *registry.Registry) color.RGBA {
 	biomeName := hit.BiomeName
-	
+
 	// Check for properties that force a specific render style (e.g., `waterlogged`)
 	if hit.IsWaterlogged || hit.WaterDepth > 0 {
 		water, _ := blockReg.GetColour("minecraft:water")
-		
+
 		waterCol := blockReg.ApplyBiomeTint(water.Base, biomeName, registry.TintWater)
 
 		// Fast path: if water depth is at or beyond the configured maximum, skip floor blending
@@ -286,7 +315,7 @@ func (r *Renderer) resolveColour(hit *BlockHit, blockReg *registry.Registry) col
 			if opacity > 0.95 {
 				opacity = 0.95
 			}
-			
+
 			return color.RGBA{
 				R: uint8(float64(waterCol.R)*opacity + float64(floorCol.R)*(1.0-opacity)),
 				G: uint8(float64(waterCol.G)*opacity + float64(floorCol.G)*(1.0-opacity)),

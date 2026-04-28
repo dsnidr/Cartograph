@@ -34,9 +34,10 @@ func printVersion() {
 		}
 	}
 
-	if info.Main.Version != "(devel)" && info.Main.Version != "" {
+	switch {
+	case info.Main.Version != "(devel)" && info.Main.Version != "":
 		fmt.Printf("cartograph %s\n", info.Main.Version)
-	} else if vcsRevision != "" {
+	case vcsRevision != "":
 		mod := ""
 		if vcsModified {
 			mod = "-dirty"
@@ -48,7 +49,7 @@ func printVersion() {
 		}
 
 		fmt.Printf("cartograph %s%s (%s)\n", rev, mod, vcsTime)
-	} else {
+	default:
 		fmt.Printf("cartograph (unknown version)\n")
 	}
 }

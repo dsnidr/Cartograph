@@ -28,6 +28,7 @@ type Orchestrator struct {
 	Scale         int
 	OutputMode    OutputMode
 	Renderer      *render.Renderer
+	BiomePalette  *render.BiomePalette
 
 	compressionPool sync.Pool
 	bufioPool       sync.Pool
@@ -42,6 +43,7 @@ func NewOrchestrator(sp *nbt.StringPool, br *registry.Registry, outputDir string
 		Scale:         scale,
 		OutputMode:    outputMode,
 		Renderer:      renderer,
+		BiomePalette:  render.NewBiomePalette(),
 
 		compressionPool: sync.Pool{},
 		bufioPool:       sync.Pool{},
