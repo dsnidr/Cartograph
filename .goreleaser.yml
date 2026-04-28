@@ -3,7 +3,7 @@ project_name: cartograph
 
 builds:
   - id: cartograph
-    main: ./cmd/cli
+    main: ./cmd/cartograph
     binary: cartograph
     env:
       - CGO_ENABLED=0
